@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scraper Gerentes · DatosCIF</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --border: #2a2a38;
+    --accent: #4f6ef7;
+    --accent2: #7c3aed;
+    --green: #10b981;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --font: 'Syne', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(79,110,247,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(79,110,247,.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { max-width: 1300px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  /* HEADER */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+    backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(10,10,15,.9);
+  }
+  .header-inner { display: flex; align-items: center; justify-content: space-between; }
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .logo-text { font-weight: 800; font-size: 1.2rem; letter-spacing: -0.5px; }
+  .logo-sub { font-family: var(--mono); font-size: .7rem; color: var(--muted); margin-top: 2px; }
+
+  /* STAT CARDS */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin: 32px 0;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    transition: border-color .2s, transform .2s;
+  }
+  .stat-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .stat-num {
+    font-family: var(--mono);
+    font-size: 1.8rem;
+    font-weight: 500;
+    line-height: 1;
+  }
+  .stat-label { font-size: .75rem; color: var(--muted); margin-top: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-card.green .stat-num { color: var(--green); }
+  .stat-card.orange .stat-num { color: var(--orange); }
+  .stat-card.red .stat-num { color: var(--red); }
+  .stat-card.accent .stat-num { color: var(--accent); }
+
+  /* PANELS */
+  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  @media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 700;
+    font-size: .9rem;
+    display: flex; align-items: center; gap: 8px;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .panel-body { padding: 20px; }
+
+  /* UPLOAD */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(79,110,247,.05);
+  }
+  .drop-icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .drop-text { font-size: .9rem; color: var(--muted); }
+  .drop-text strong { color: var(--text); }
+  #fileInput { display: none; }
+
+  /* BUTTONS */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font);
+    font-weight: 700;
+    font-size: .85rem;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    transition: all .2s;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+  }
+  .btn-primary:hover { filter: brightness(1.15); transform: translateY(-1px); }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-danger:hover { filter: brightness(1.15); }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; transform: none !important; filter: none !important; }
+
+  /* PROGRESS */
+  .progress-wrap { margin: 16px 0; }
+  .progress-bar-bg {
+    background: var(--surface2);
+    border-radius: 99px;
+    height: 6px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 99px;
+    transition: width .4s ease;
+    width: 0%;
+  }
+  .progress-info {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: .75rem; color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* LOG */
+  .log-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    height: 220px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: .75rem;
+    line-height: 1.7;
+  }
+  .log-box::-webkit-scrollbar { width: 4px; }
+  .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .log-entry { color: var(--muted); }
+  .log-entry.ok { color: var(--green); }
+  .log-entry.err { color: var(--red); }
+  .log-entry.warn { color: var(--orange); }
+
+  /* STATUS DOT */
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    display: inline-block;
+  }
+  .status-dot.active {
+    background: var(--green);
+    box-shadow: 0 0 0 3px rgba(16,185,129,.2);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(16,185,129,.2); }
+    50% { box-shadow: 0 0 0 6px rgba(16,185,129,.1); }
+  }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  thead th {
+    background: var(--surface2);
+    padding: 10px 14px;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td { padding: 10px 14px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-family: var(--mono); font-size: .65rem;
+    font-weight: 500;
+  }
+  .badge-ok { background: rgba(16,185,129,.15); color: var(--green); }
+  .badge-pending { background: rgba(107,107,138,.15); color: var(--muted); }
+  .badge-warn { background: rgba(245,158,11,.15); color: var(--orange); }
+  .badge-err { background: rgba(239,68,68,.15); color: var(--red); }
+
+  /* PAGINATION */
+  .pagination {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 16px 0;
+  }
+  .page-btn {
+    padding: 6px 14px; border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--text);
+    font-family: var(--mono); font-size: .8rem;
+    cursor: pointer; transition: all .2s;
+  }
+  .page-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .page-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* FILTER TABS */
+  .filter-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-tab {
+    padding: 6px 14px; border-radius: 99px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--muted);
+    font-family: var(--mono); font-size: .75rem;
+    cursor: pointer; transition: all .2s;
+  }
+  .filter-tab:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* CURRENT EMPRESA */
+  .current-empresa {
+    font-family: var(--mono);
+    font-size: .85rem;
+    color: var(--accent);
+    background: rgba(79,110,247,.1);
+    border: 1px solid rgba(79,110,247,.2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin: 12px 0;
+    display: none;
+  }
+  .current-empresa.visible { display: block; }
+
+  /* ACTION ROW */
+  .action-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+
+  .full-panel { margin-bottom: 24px; }
+
+  /* Modal confirmación */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 500;
+    display: none; align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    max-width: 400px; width: 90%;
+    box-shadow: 0 24px 64px rgba(0,0,0,.6);
+    animation: modalIn .2s ease;
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(.96) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .modal-icon { font-size: 2.2rem; margin-bottom: 12px; }
+  .modal-title { font-weight: 800; font-size: 1.1rem; margin-bottom: 8px; }
+  .modal-desc { font-size: .85rem; color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
+  .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-size: .85rem;
+    z-index: 999;
+    display: none;
+    animation: toastIn .3s ease;
+  }
+  .toast.show { display: block; }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container header-inner">
+    <div class="logo">
+      <div class="logo-icon">🔍</div>
+      <div>
+        <div class="logo-text">GerenterScraper</div>
+        <div class="logo-sub">datoscif.es · Valencia 2026</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-outline" onclick="exportExcel()">⬇ Exportar Excel</button>
+    </div>
+  </div>
+</header>
+
+<div class="container" style="padding-top:28px">
+
+  <!-- STATS -->
+  <div class="stats-grid" id="statsGrid">
+    <div class="stat-card"><div class="stat-num" id="statTotal">—</div><div class="stat-label">Total</div></div>
+    <div class="stat-card"><div class="stat-num" id="statPendientes">—</div><div class="stat-label">Pendientes</div></div>
+    <div class="stat-card green"><div class="stat-num" id="statGerentes">—</div><div class="stat-label">Con Gerente</div></div>
+    <div class="stat-card orange"><div class="stat-num" id="statSinGerente">—</div><div class="stat-label">Sin Gerente</div></div>
+    <div class="stat-card"><div class="stat-num" id="statNoEncontradas">—</div><div class="stat-label">No encontradas</div></div>
+    <div class="stat-card red"><div class="stat-num" id="statErrores">—</div><div class="stat-label">Errores</div></div>
+  </div>
+
+  <!-- TOP PANELS -->
+  <div class="panels">
+    <!-- UPLOAD -->
+    <div class="panel">
+      <div class="panel-header">📂 Cargar Excel</div>
+      <div class="panel-body">
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+          <div class="drop-icon">📊</div>
+          <div class="drop-text"><strong>Arrastra tu .xlsx aquí</strong><br>o haz clic para seleccionar</div>
+        </div>
+        <input type="file" id="fileInput" accept=".xlsx">
+        <div style="margin-top:12px;font-family:var(--mono);font-size:.75rem;color:var(--muted)" id="uploadStatus">Sin archivo cargado</div>
+      </div>
+    </div>
+
+    <!-- CONTROL -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="status-dot" id="statusDot"></span>
+        Control de Scraping
+      </div>
+      <div class="panel-body">
+        <div class="progress-wrap">
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progressFill"></div>
+          </div>
+          <div class="progress-info">
+            <span id="progressText">0 / 0 empresas</span>
+            <span id="progressPct">0%</span>
+          </div>
+        </div>
+        <div class="current-empresa" id="currentEmpresa">Procesando...</div>
+        <div class="action-row">
+          <button class="btn btn-primary" id="btnStart" onclick="startScraping()">▶ Iniciar Scraping</button>
+          <button class="btn btn-danger" id="btnStop" onclick="stopScraping()" disabled>⬛ Detener</button>
+        </div>
+        <div style="margin-top:16px;font-size:.75rem;color:var(--muted);font-family:var(--mono)">
+          💡 El scraper aplica delays aleatorios (2-5s) entre peticiones para evitar bloqueos (error 428)
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="panel full-panel">
+    <div class="panel-header">📋 Log en tiempo real</div>
+    <div class="panel-body">
+      <div class="log-box" id="logBox">
+        <div class="log-entry">Esperando para iniciar...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="panel full-panel">
+    <div class="panel-header">🏢 Empresas</div>
+    <div class="panel-body">
+      <!-- SEARCH BAR -->
+      <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+        <div style="position:relative;flex:1;min-width:240px">
+          <input id="searchInput" type="text" placeholder="🔍  Buscar empresa por nombre..."
+            style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;
+                   padding:9px 14px;color:var(--text);font-family:var(--mono);font-size:.82rem;outline:none;
+                   transition:border-color .2s"
+            oninput="onSearch(this.value)"
+            onfocus="this.style.borderColor='var(--accent)'"
+            onblur="this.style.borderColor='var(--border)'">
+          <div id="searchDropdown" style="display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;
+               background:var(--surface);border:1px solid var(--border);border-radius:10px;
+               z-index:200;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.5)"></div>
+        </div>
+        <button class="btn btn-outline" onclick="clearSearch()" style="white-space:nowrap">✕ Limpiar</button>
+      </div>
+
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="setFilter(null, this)">Todas</button>
+        <button class="filter-tab" onclick="setFilter('pendiente', this)">Pendientes</button>
+        <button class="filter-tab" onclick="setFilter('ok', this)">Con Gerente</button>
+        <button class="filter-tab" onclick="setFilter('sin_gerente', this)">Sin Gerente</button>
+        <button class="filter-tab" onclick="setFilter('no_encontrada', this)">No encontradas</button>
+        <button class="filter-tab" onclick="setFilter('error', this)">Errores</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Empresa</th>
+              <th>Gerente</th>
+              <th>Email</th>
+              <th>Teléfono</th>
+              <th>Estado</th>
+              <th>URL DatosCIF</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px;font-family:var(--mono)">Carga un Excel para comenzar</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let currentFilter = null;
+let currentPage = 1;
+let statusInterval = null;
+let searchMode = false;   // true = mostrando resultado de búsqueda individual
+
+// ─── DRAG & DROP ───
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) uploadFile(file);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) uploadFile(fileInput.files[0]);
+});
+
+async function uploadFile(file) {
+  if (!file.name.endsWith('.xlsx')) { showToast('❌ Solo se admiten archivos .xlsx'); return; }
+  document.getElementById('uploadStatus').textContent = `Subiendo ${file.name}...`;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/api/upload', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    document.getElementById('uploadStatus').textContent = `✅ ${file.name} — ${data.nuevas} empresas nuevas cargadas`;
+    showToast(`✅ ${data.nuevas} empresas cargadas en BD`);
+    refreshStats();
+    loadTable();
+  } catch (e) {
+    document.getElementById('uploadStatus').textContent = '❌ Error al subir: ' + e.message;
+    showToast('❌ ' + e.message);
+  }
+}
+
+// ─── STATS ───
+async function refreshStats() {
+  try {
+    const r = await fetch('/api/stats');
+    const d = await r.json();
+    document.getElementById('statTotal').textContent = d.total ?? 0;
+    document.getElementById('statPendientes').textContent = d.pendientes ?? 0;
+    document.getElementById('statGerentes').textContent = d.con_gerente ?? 0;
+    document.getElementById('statSinGerente').textContent = d.sin_gerente ?? 0;
+    document.getElementById('statNoEncontradas').textContent = d.no_encontradas ?? 0;
+    document.getElementById('statErrores').textContent = d.errores ?? 0;
+  } catch {}
+}
+
+// ─── SCRAPING MASIVO ───
+async function startScraping() {
+  const r = await fetch('/api/scraping/start', { method: 'POST' });
+  const d = await r.json();
+  if (d.error) { showToast('❌ ' + d.error); return; }
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnStop').disabled = false;
+  document.getElementById('statusDot').classList.add('active');
+  statusInterval = setInterval(pollStatus, 1500);
+}
+
+async function stopScraping() {
+  await fetch('/api/scraping/stop', { method: 'POST' });
+  showToast('⬛ Deteniendo scraping...');
+}
+
+async function pollStatus() {
+  try {
+    const r = await fetch('/api/scraping/status');
+    const d = await r.json();
+
+    document.getElementById('progressFill').style.width = d.percent + '%';
+    document.getElementById('progressText').textContent = `${d.current} / ${d.total} empresas`;
+    document.getElementById('progressPct').textContent = d.percent + '%';
+
+    const ce = document.getElementById('currentEmpresa');
+    if (d.current_empresa) {
+      ce.textContent = '⚡ ' + d.current_empresa;
+      ce.classList.add('visible');
+    } else {
+      ce.classList.remove('visible');
+    }
+
+    const lb = document.getElementById('logBox');
+    if (d.log && d.log.length) {
+      lb.innerHTML = d.log.map(line => {
+        let cls = 'log-entry';
+        if (line.includes('✅') || line.includes('Gerente:')) cls += ' ok';
+        else if (line.includes('💥') || line.includes('Error')) cls += ' err';
+        else if (line.includes('⚠️') || line.includes('❌')) cls += ' warn';
+        return `<div class="${cls}">${escHtml(line)}</div>`;
+      }).join('');
+      lb.scrollTop = lb.scrollHeight;
+    }
+
+    if (!d.running) {
+      clearInterval(statusInterval);
+      document.getElementById('btnStart').disabled = false;
+      document.getElementById('btnStop').disabled = true;
+      document.getElementById('statusDot').classList.remove('active');
+      refreshStats();
+      loadTable();
+    }
+  } catch {}
+}
+
+// ─── BÚSQUEDA INDIVIDUAL ───
+let searchTimer = null;
+
+function onSearch(val) {
+  clearTimeout(searchTimer);
+  const dd = document.getElementById('searchDropdown');
+  if (!val.trim()) { dd.style.display = 'none'; return; }
+  searchTimer = setTimeout(() => fetchSearch(val), 300);
+}
+
+async function fetchSearch(q) {
+  const r = await fetch('/api/empresas/search?q=' + encodeURIComponent(q));
+  const rows = await r.json();
+  const dd = document.getElementById('searchDropdown');
+  if (!rows.length) {
+    dd.innerHTML = `<div style="padding:14px 16px;font-family:var(--mono);font-size:.78rem;color:var(--muted)">Sin resultados</div>`;
+    dd.style.display = 'block';
+    return;
+  }
+  dd.innerHTML = rows.map(e => `
+    <div onclick="selectEmpresa(${e.id})" style="
+      padding:11px 16px; cursor:pointer; border-bottom:1px solid var(--border);
+      transition:background .15s; display:flex; justify-content:space-between; align-items:center;
+      gap:12px"
+      onmouseover="this.style.background='var(--surface2)'"
+      onmouseout="this.style.background='transparent'">
+      <div>
+        <div style="font-size:.82rem;font-weight:600">${escHtml(e.nombre)}</div>
+        <div style="font-size:.7rem;color:var(--muted);font-family:var(--mono);margin-top:3px">
+          ${escHtml(e.provincia || '')} · ${escHtml(e.email || '—')}
+        </div>
+      </div>
+      <span class="badge ${badgeClass(e.estado)}">${e.estado}</span>
+    </div>
+  `).join('');
+  dd.style.display = 'block';
+}
+
+async function selectEmpresa(id) {
+  document.getElementById('searchDropdown').style.display = 'none';
+  // Mostrar solo esa empresa en la tabla con opción de scrapearla
+  const r = await fetch('/api/empresas/search?q=' + encodeURIComponent(document.getElementById('searchInput').value));
+  const all = await r.json();
+  const empresa = all.find(e => e.id === id);
+  if (!empresa) return;
+
+  searchMode = true;
+  renderTable([empresa], true);
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchDropdown').style.display = 'none';
+  searchMode = false;
+  loadTable();
+}
+
+// ─── SCRAPING INDIVIDUAL ───
+async function scrapeSingle(id, btn) {
+  btn.disabled = true;
+  btn.textContent = '⏳';
+  btn.title = 'Buscando...';
+  showToast('🔍 Buscando gerente...');
+  try {
+    const r = await fetch(`/api/scraping/single/${id}`, { method: 'POST' });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+
+    const estados = {
+      ok: `✅ Gerente: ${d.gerente}`,
+      sin_gerente: '⚠️ Sin gerente encontrado',
+      no_encontrada: '❌ Empresa no encontrada',
+      error: '💥 Error de scraping'
+    };
+    showToast(estados[d.estado] || d.estado);
+    refreshStats();
+
+    // Refrescar fila en tabla
+    if (searchMode) {
+      const r2 = await fetch('/api/empresas/search?q=' + encodeURIComponent(document.getElementById('searchInput').value));
+      const all = await r2.json();
+      const updated = all.find(e => e.id === id);
+      if (updated) renderTable([updated], true);
+    } else {
+      loadTable();
+    }
+  } catch(e) {
+    showToast('❌ ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '🔍';
+  }
+}
+
+// ─── TABLE ───
+function setFilter(estado, btn) {
+  currentFilter = estado;
+  currentPage = 1;
+  searchMode = false;
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchDropdown').style.display = 'none';
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  loadTable();
+}
+
+async function loadTable() {
+  if (searchMode) return;
+  const params = new URLSearchParams({ page: currentPage, per_page: 50 });
+  if (currentFilter) params.append('estado', currentFilter);
+  const r = await fetch('/api/empresas?' + params);
+  const rows = await r.json();
+  renderTable(rows, false);
+}
+
+function renderTable(rows, single) {
+  const tbody = document.getElementById('tableBody');
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px;font-family:var(--mono)">Sin resultados</td></tr>`;
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = rows.map((e, i) => {
+    const urlCell = e.url_datoscif
+      ? `<a href="${e.url_datoscif}" target="_blank" style="color:var(--accent);text-decoration:none;font-family:var(--mono);font-size:.7rem">ver →</a>`
+      : `<span style="color:var(--muted)">—</span>`;
+    const scrapeBtn = `<button onclick="scrapeSingle(${e.id}, this)"
+      title="Buscar gerente de esta empresa"
+      style="background:transparent;border:1px solid var(--border);border-radius:6px;
+             padding:4px 10px;cursor:pointer;color:var(--muted);font-size:.8rem;
+             transition:all .2s;font-family:var(--mono)"
+      onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+      onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">🔍</button>`;
+    return `<tr>
+      <td style="color:var(--muted);font-family:var(--mono)">${single ? '—' : (currentPage-1)*50 + i + 1}</td>
+      <td title="${escHtml(e.nombre)}">${escHtml(e.nombre)}</td>
+      <td style="color:${e.gerente ? 'var(--green)' : 'var(--muted)'}">${escHtml(e.gerente || '—')}</td>
+      <td style="color:var(--muted);font-size:.78rem">${escHtml(e.email || '—')}</td>
+      <td style="font-family:var(--mono);font-size:.78rem">${escHtml(e.telefono || '—')}</td>
+      <td><span class="badge ${badgeClass(e.estado)}">${e.estado}</span></td>
+      <td>${urlCell}</td>
+      <td>${scrapeBtn}</td>
+    </tr>`;
+  }).join('');
+
+  // Pagination (solo en modo normal)
+  const pg = document.getElementById('pagination');
+  if (single) { pg.innerHTML = ''; return; }
+  const hasPrev = currentPage > 1;
+  const hasNext = rows.length === 50;
+  pg.innerHTML = `
+    ${hasPrev ? `<button class="page-btn" onclick="goPage(${currentPage-1})">← Anterior</button>` : ''}
+    <button class="page-btn active">${currentPage}</button>
+    ${hasNext ? `<button class="page-btn" onclick="goPage(${currentPage+1})">Siguiente →</button>` : ''}
+  `;
+}
+
+function badgeClass(estado) {
+  return { ok: 'badge-ok', pendiente: 'badge-pending', sin_gerente: 'badge-warn', error: 'badge-err', no_encontrada: 'badge-warn' }[estado] || 'badge-pending';
+}
+
+function goPage(p) { currentPage = p; loadTable(); }
+
+async function exportExcel() {
+  showToast('📊 Generando Excel...');
+  window.location.href = '/api/export';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Cerrar dropdown al hacer click fuera
+document.addEventListener('click', e => {
+  if (!e.target.closest('#searchInput') && !e.target.closest('#searchDropdown')) {
+    document.getElementById('searchDropdown').style.display = 'none';
+  }
+});
+
+// ─── INIT ───
+refreshStats();
+loadTable();
+setInterval(refreshStats, 10000);
+</script>
+</body>
+</html>
