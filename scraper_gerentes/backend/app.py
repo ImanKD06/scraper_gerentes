@@ -13,7 +13,9 @@ from scraper import MultiScraper
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__, static_folder="../frontend", static_url_path="")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(BASE_DIR, "..", "frontend")
+app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path="")
 
 scraping_state = {
     "running": False, "stop_requested": False,
