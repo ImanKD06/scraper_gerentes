@@ -8,8 +8,7 @@ from typing import List, Optional, Dict
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "gerentes.db")
-
+DB_PATH = "/tmp/gerentes.db"
 
 def get_connection():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
