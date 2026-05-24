@@ -42,13 +42,13 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_nombre ON empresas(nombre);
             CREATE INDEX IF NOT EXISTS idx_estado  ON empresas(estado);
         """)
-        # Migración: añadir columna fuente si no existe (para BDs antiguas)
+        # Migraciones para BDs existentes sin columna fuente
         try:
             conn.execute("ALTER TABLE empresas ADD COLUMN fuente TEXT")
+            conn.commit()
         except Exception:
             pass
     logger.info("Base de datos inicializada.")
-
 
 def cargar_empresas_desde_excel(filepath: str) -> int:
     import pandas as pd
