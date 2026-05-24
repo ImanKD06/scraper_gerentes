@@ -1,41 +1,36 @@
 """
-API Flask - Backend del scraper de gerentes
+API Flask — Backend scraper de gerentes (multi-fuente)
 """
 
-import os
-import threading
-import logging
+import os, threading, logging
 from datetime import datetime
 from flask import Flask, jsonify, request, send_file
-from database import init_db, cargar_empresas_desde_excel, get_empresas, get_stats, actualizar_empresa, get_empresas_pendientes, exportar_a_excel, get_connection
-from scraper import DatosCifScraper
+from database import (init_db, cargar_empresas_desde_excel, get_empresas,
+                      get_stats, actualizar_empresa, get_empresas_pendientes,
+                      exportar_a_excel, get_connection)
+from scraper import MultiScraper
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder="../frontend", static_url_path="")
 
-# Estado global del proceso de scraping
 scraping_state = {
-    "running": False,
-    "stop_requested": False,
-    "current": 0,
-    "total": 0,
-    "current_empresa": "",
-    "log": [],
+    "running": False, "stop_requested": False,
+    "current": 0, "total": 0,
+    "current_empresa": "", "log": [],
 }
 scraping_thread = None
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
-EXCEL_INPUT = os.path.join(DATA_DIR, "empresas_input.xlsx")
+DATA_DIR     = os.path.join(os.path.dirname(__file__), "..", "data")
+EXCEL_INPUT  = os.path.join(DATA_DIR, "empresas_input.xlsx")
 EXCEL_OUTPUT = os.path.join(DATA_DIR, "empresas_con_gerentes.xlsx")
-
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
-def add_log(msg: str):
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    entry = f"[{timestamp}] {msg}"
+def add_log(msg):
+    ts = datetime.now().strftime("%H:%M:%S")
+    entry = f"[{ts}] {msg}"
     scraping_state["log"].append(entry)
     if len(scraping_state["log"]) > 500:
         scraping_state["log"] = scraping_state["log"][-500:]
@@ -43,14 +38,11 @@ def add_log(msg: str):
 
 
 def run_scraping():
-    """Hilo de scraping."""
-    global scraping_state
-    scraper = DatosCifScraper()
+    scraper = MultiScraper()
     empresas = get_empresas_pendientes()
-    scraping_state["total"] = len(empresas)
+    scraping_state["total"]   = len(empresas)
     scraping_state["current"] = 0
-
-    add_log(f"Iniciando scraping de {len(empresas)} empresas pendientes...")
+    add_log(f"Iniciando scraping de {len(empresas)} empresas — 3 fuentes activas (datoscif → einforma → empresite)")
 
     for empresa in empresas:
         if scraping_state["stop_requested"]:
@@ -66,18 +58,20 @@ def run_scraping():
             empresa_id=empresa["id"],
             gerente=result.get("gerente"),
             url=result.get("url"),
+            fuente=result.get("fuente"),
             estado=result["estado"],
             error=result.get("error"),
         )
 
-        estado_txt = {
-            "ok": f"✅ Gerente: {result.get('gerente')}",
-            "sin_gerente": "⚠️ Sin gerente encontrado",
-            "no_encontrada": "❌ Empresa no encontrada",
-            "error": f"💥 Error: {result.get('error', '')}",
-        }.get(result["estado"], result["estado"])
+        icono = {"ok":"✅","sin_gerente":"⚠️","no_encontrada":"❌","error":"💥"}.get(result["estado"],"·")
+        fuente_txt = f" [{result.get('fuente','')}]" if result.get("fuente") else ""
+        if result["estado"] == "ok":
+            add_log(f"  → {icono} Gerente: {result['gerente']}{fuente_txt}")
+        elif result["estado"] == "error":
+            add_log(f"  → {icono} Error: {result.get('error','')}")
+        else:
+            add_log(f"  → {icono} {result['estado']}{fuente_txt}")
 
-        add_log(f"  → {estado_txt}")
         scraping_state["current"] += 1
 
     scraping_state["running"] = False
@@ -86,7 +80,7 @@ def run_scraping():
     add_log("✅ Scraping completado.")
 
 
-# ──────────────────── RUTAS ────────────────────
+# ─── RUTAS ────────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -103,8 +97,7 @@ def upload():
     f.save(EXCEL_INPUT)
     init_db()
     n = cargar_empresas_desde_excel(EXCEL_INPUT)
-    stats = get_stats()
-    return jsonify({"ok": True, "nuevas": n, "stats": stats})
+    return jsonify({"ok": True, "nuevas": n, "stats": get_stats()})
 
 
 @app.route("/api/stats")
@@ -112,18 +105,29 @@ def stats():
     try:
         return jsonify(get_stats())
     except Exception:
-        return jsonify({"total": 0, "pendientes": 0, "con_gerente": 0,
-                        "sin_gerente": 0, "no_encontradas": 0, "errores": 0})
+        return jsonify({"total":0,"pendientes":0,"con_gerente":0,
+                        "sin_gerente":0,"no_encontradas":0,"errores":0})
 
 
 @app.route("/api/empresas")
 def empresas():
-    estado = request.args.get("estado")
-    page = int(request.args.get("page", 1))
+    estado   = request.args.get("estado")
+    page     = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 50))
-    offset = (page - 1) * per_page
-    data = get_empresas(estado=estado, limit=per_page, offset=offset)
+    data = get_empresas(estado=estado, limit=per_page, offset=(page-1)*per_page)
     return jsonify(data)
+
+
+@app.route("/api/empresas/search")
+def search_empresas():
+    q = request.args.get("q", "").strip()
+    if not q: return jsonify([])
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM empresas WHERE nombre LIKE ? ORDER BY nombre LIMIT 20",
+            (f"%{q}%",)
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
 
 
 @app.route("/api/scraping/start", methods=["POST"])
@@ -147,79 +151,56 @@ def stop_scraping():
 
 @app.route("/api/scraping/status")
 def scraping_status():
-    pct = 0
-    if scraping_state["total"] > 0:
-        pct = round(scraping_state["current"] / scraping_state["total"] * 100, 1)
+    pct = round(scraping_state["current"] / scraping_state["total"] * 100, 1) if scraping_state["total"] else 0
     return jsonify({
-        "running": scraping_state["running"],
-        "current": scraping_state["current"],
-        "total": scraping_state["total"],
-        "percent": pct,
+        "running":         scraping_state["running"],
+        "current":         scraping_state["current"],
+        "total":           scraping_state["total"],
+        "percent":         pct,
         "current_empresa": scraping_state["current_empresa"],
-        "log": scraping_state["log"][-50:],
+        "log":             scraping_state["log"][-50:],
     })
 
 
 @app.route("/api/scraping/single/<int:empresa_id>", methods=["POST"])
 def scrape_single(empresa_id):
-    """Scrapea una sola empresa por ID (síncrono, devuelve resultado directo)."""
     with get_connection() as conn:
-        row = conn.execute("SELECT * FROM empresas WHERE id = ?", (empresa_id,)).fetchone()
+        row = conn.execute("SELECT * FROM empresas WHERE id=?", (empresa_id,)).fetchone()
     if not row:
         return jsonify({"error": "Empresa no encontrada"}), 404
-
-    empresa = dict(row)
-    scraper = DatosCifScraper()
-    result = scraper.get_gerente(empresa["nombre"])
-
+    scraper = MultiScraper()
+    result  = scraper.get_gerente(dict(row)["nombre"])
     actualizar_empresa(
         empresa_id=empresa_id,
         gerente=result.get("gerente"),
         url=result.get("url"),
+        fuente=result.get("fuente"),
         estado=result["estado"],
         error=result.get("error"),
     )
     return jsonify(result)
 
 
-@app.route("/api/empresas/search")
-def search_empresas():
-    """Busca empresas por nombre (para el buscador del frontend)."""
-    q = request.args.get("q", "").strip()
-    if not q:
-        return jsonify([])
-    with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT * FROM empresas WHERE nombre LIKE ? ORDER BY nombre LIMIT 20",
-            (f"%{q}%",)
-        ).fetchall()
-    return jsonify([dict(r) for r in rows])
-
-
 @app.route("/api/reset/pendientes", methods=["POST"])
 def reset_pendientes():
-    """Marca todas las empresas procesadas como pendientes (para relanzar el scraping)."""
     if scraping_state["running"]:
         return jsonify({"error": "No se puede resetear con scraping en curso"}), 400
     with get_connection() as conn:
-        conn.execute("UPDATE empresas SET estado='pendiente', gerente=NULL, url_datoscif=NULL, error_msg=NULL, fecha_scraping=NULL")
+        conn.execute("UPDATE empresas SET estado='pendiente', gerente=NULL, url_datoscif=NULL, fuente=NULL, error_msg=NULL, fecha_scraping=NULL")
     add_log("🔄 Todas las empresas reseteadas a pendiente.")
     return jsonify({"ok": True, "stats": get_stats()})
 
 
 @app.route("/api/reset/todo", methods=["POST"])
 def reset_todo():
-    """Elimina todos los datos: BD, excel input y excel output."""
     if scraping_state["running"]:
         return jsonify({"error": "No se puede eliminar con scraping en curso"}), 400
     with get_connection() as conn:
         conn.execute("DELETE FROM empresas")
     for f in [EXCEL_INPUT, EXCEL_OUTPUT]:
-        if os.path.exists(f):
-            os.remove(f)
+        if os.path.exists(f): os.remove(f)
     scraping_state["log"] = []
-    scraping_state["current"] = 0
-    scraping_state["total"] = 0
+    scraping_state["current"] = scraping_state["total"] = 0
     add_log("🗑️ Datos eliminados. Carga un nuevo Excel para comenzar.")
     return jsonify({"ok": True})
 
@@ -240,5 +221,6 @@ def export():
 
 if __name__ == "__main__":
     init_db()
-    print("\n🚀 Servidor iniciado en http://localhost:5000\n")
+    print("\n🚀 Servidor en http://localhost:5000")
+    print("📡 Fuentes activas: datoscif.es → einforma.com → empresite.eleconomista.es\n")
     app.run(debug=True, port=5000, threaded=True)
