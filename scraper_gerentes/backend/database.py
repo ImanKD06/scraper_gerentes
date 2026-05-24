@@ -19,7 +19,24 @@ def get_connection():
 
 
 def init_db():
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True) if os.path.dirname(DB_PATH) else None
     with get_connection() as conn:
+        # Comprobar si la tabla existe y tiene la columna fuente
+        tabla_existe = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='empresas'"
+        ).fetchone()
+        
+        if tabla_existe:
+            columnas = [row[1] for row in conn.execute("PRAGMA table_info(empresas)").fetchall()]
+            if "fuente" not in columnas:
+                # BD antigua sin columna fuente — añadirla
+                try:
+                    conn.execute("ALTER TABLE empresas ADD COLUMN fuente TEXT")
+                    conn.commit()
+                    logger.info("Migración: columna 'fuente' añadida.")
+                except Exception as e:
+                    logger.error(f"Error en migración: {e}")
+
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS empresas (
                 id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,12 +59,6 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_nombre ON empresas(nombre);
             CREATE INDEX IF NOT EXISTS idx_estado  ON empresas(estado);
         """)
-        # Migraciones para BDs existentes sin columna fuente
-        try:
-            conn.execute("ALTER TABLE empresas ADD COLUMN fuente TEXT")
-            conn.commit()
-        except Exception:
-            pass
     logger.info("Base de datos inicializada.")
 
 def cargar_empresas_desde_excel(filepath: str) -> int:
