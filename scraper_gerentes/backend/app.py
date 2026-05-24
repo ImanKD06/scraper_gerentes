@@ -24,10 +24,9 @@ scraping_state = {
 }
 scraping_thread = None
 
-DATA_DIR     = os.path.join(os.path.dirname(__file__), "..", "data")
-EXCEL_INPUT  = os.path.join(DATA_DIR, "empresas_input.xlsx")
-EXCEL_OUTPUT = os.path.join(DATA_DIR, "empresas_con_gerentes.xlsx")
-os.makedirs(DATA_DIR, exist_ok=True)
+DATA_DIR     = "/tmp"
+EXCEL_INPUT  = "/tmp/empresas_input.xlsx"
+EXCEL_OUTPUT = "/tmp/empresas_con_gerentes.xlsx"
 
 
 def add_log(msg):
@@ -220,6 +219,7 @@ def export():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+init_db()
 
 if __name__ == "__main__":
     init_db()
