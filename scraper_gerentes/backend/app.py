@@ -86,7 +86,7 @@ def run_scraping():
 
 @app.route("/")
 def index():
-    return send_file("../frontend/index.html")
+    return send_file(os.path.join(FRONTEND_DIR, "index.html"))
 
 
 @app.route("/api/upload", methods=["POST"])
